@@ -293,7 +293,22 @@ body {
   gap: 12px;
 }
 
-.modal-left { display: flex; flex-direction: column; gap: 6px; }
+.modal-left { display: flex; flex-direction: column; gap: 8px; }
+
+.size-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.btn-size {
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  transition: all 0.15s;
+}
+.btn-size:hover { border-color: var(--primary); color: var(--primary); }
 
 .modal-template-name {
   font-size: 1.1rem;

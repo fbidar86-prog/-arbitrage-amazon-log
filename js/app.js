@@ -3,26 +3,27 @@
 
   let userImage = null;
   let activeTemplate = null;
-  let currentFramePos = null; // overrides template default when user drags
+  let currentFramePos = null;
 
   const drag = { active: false, startX: 0, startY: 0, origXp: 0, origYp: 0 };
 
-  const uploadZone      = document.getElementById('uploadZone');
-  const uploadBtn       = document.getElementById('uploadBtn');
-  const fileInput       = document.getElementById('fileInput');
-  const imageStrip      = document.getElementById('imageStrip');
-  const currentThumb    = document.getElementById('currentThumb');
-  const changeImageBtn  = document.getElementById('changeImageBtn');
-  const templatesGrid   = document.getElementById('templatesGrid');
-  const modalOverlay    = document.getElementById('modalOverlay');
-  const modalClose      = document.getElementById('modalClose');
+  const uploadZone       = document.getElementById('uploadZone');
+  const uploadBtn        = document.getElementById('uploadBtn');
+  const fileInput        = document.getElementById('fileInput');
+  const imageStrip       = document.getElementById('imageStrip');
+  const currentThumb     = document.getElementById('currentThumb');
+  const changeImageBtn   = document.getElementById('changeImageBtn');
+  const templatesGrid    = document.getElementById('templatesGrid');
+  const modalOverlay     = document.getElementById('modalOverlay');
+  const modalClose       = document.getElementById('modalClose');
   const modalTemplateName = document.getElementById('modalTemplateName');
-  const previewCanvas   = document.getElementById('previewCanvas');
-  const downloadBtn     = document.getElementById('downloadBtn');
-  const resetBtn        = document.getElementById('resetBtn');
+  const previewCanvas    = document.getElementById('previewCanvas');
+  const downloadBtn      = document.getElementById('downloadBtn');
+  const resetBtn         = document.getElementById('resetBtn');
+  const sizeUpBtn        = document.getElementById('sizeUpBtn');
+  const sizeDownBtn      = document.getElementById('sizeDownBtn');
 
   // ---- Preload background photos ----
-
   function preloadBgs() {
     TEMPLATES.forEach(tpl => {
       const img = new Image();
@@ -42,7 +43,6 @@
   }
 
   // ---- Upload ----
-
   uploadZone.addEventListener('click', () => fileInput.click());
   uploadBtn.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
   changeImageBtn.addEventListener('click', () => fileInput.click());
@@ -74,7 +74,6 @@
   }
 
   // ---- Template cards ----
-
   function buildCards() {
     templatesGrid.innerHTML = '';
     TEMPLATES.forEach(tpl => {
@@ -100,6 +99,15 @@
   }
 
   // ---- Modal ----
+  function getActiveFrame() {
+    if (!activeTemplate) return null;
+    return currentFramePos || activeTemplate.frames[0];
+  }
+
+  function rerender(overrides) {
+    if (!activeTemplate) return;
+    activeTemplate.render(previewCanvas, userImage, overrides ? [overrides] : null);
+  }
 
   function openPreview(tpl) {
     activeTemplate = tpl;
@@ -113,6 +121,7 @@
   function closeModal() {
     modalOverlay.style.display = 'none';
     document.body.style.overflow = '';
+    drag.active = false;
   }
 
   modalClose.addEventListener('click', closeModal);
@@ -121,30 +130,42 @@
 
   resetBtn.addEventListener('click', () => {
     currentFramePos = null;
-    if (activeTemplate) activeTemplate.render(previewCanvas, userImage);
+    rerender(null);
   });
 
-  // ---- Drag to reposition frame ----
-
-  function getActiveFrame() {
-    if (!activeTemplate) return null;
-    return currentFramePos || activeTemplate.frames[0];
+  // ---- Resize ----
+  function resize(factor) {
+    const f = getActiveFrame();
+    if (!f) return;
+    const newW = Math.min(1, Math.max(0.05, f.wp * factor));
+    const newH = Math.min(1, Math.max(0.05, f.hp * factor));
+    const dw = newW - f.wp, dh = newH - f.hp;
+    currentFramePos = {
+      ...f,
+      wp: newW,
+      hp: newH,
+      xp: Math.max(0, Math.min(1 - newW, f.xp - dw / 2)),
+      yp: Math.max(0, Math.min(1 - newH, f.yp - dh / 2)),
+    };
+    rerender(currentFramePos);
   }
 
+  sizeUpBtn.addEventListener('click', () => resize(1.08));
+  sizeDownBtn.addEventListener('click', () => resize(1 / 1.08));
+
+  // ---- Drag ----
   function posOnCanvas(e) {
     const rect = previewCanvas.getBoundingClientRect();
     const src = e.touches ? e.touches[0] : e;
     return {
       x: (src.clientX - rect.left) / rect.width,
-      y: (src.clientY - rect.top) / rect.height
+      y: (src.clientY - rect.top) / rect.height,
     };
   }
 
   function hitFrame(pos) {
     const f = getActiveFrame();
-    if (!f) return false;
-    return pos.x >= f.xp && pos.x <= f.xp + f.wp &&
-           pos.y >= f.yp && pos.y <= f.yp + f.hp;
+    return f && pos.x >= f.xp && pos.x <= f.xp + f.wp && pos.y >= f.yp && pos.y <= f.yp + f.hp;
   }
 
   function startDrag(e) {
@@ -153,10 +174,8 @@
     e.preventDefault();
     const f = getActiveFrame();
     drag.active = true;
-    drag.startX = pos.x;
-    drag.startY = pos.y;
-    drag.origXp = f.xp;
-    drag.origYp = f.yp;
+    drag.startX = pos.x; drag.startY = pos.y;
+    drag.origXp = f.xp; drag.origYp = f.yp;
     previewCanvas.style.cursor = 'grabbing';
   }
 
@@ -169,16 +188,15 @@
     const pos = posOnCanvas(e);
     const f = getActiveFrame();
     if (!f) return;
-    const newXp = Math.max(0, Math.min(1 - f.wp, drag.origXp + pos.x - drag.startX));
-    const newYp = Math.max(0, Math.min(1 - f.hp, drag.origYp + pos.y - drag.startY));
-    currentFramePos = { ...f, xp: newXp, yp: newYp };
-    activeTemplate.render(previewCanvas, userImage, [currentFramePos]);
+    currentFramePos = {
+      ...f,
+      xp: Math.max(0, Math.min(1 - f.wp, drag.origXp + pos.x - drag.startX)),
+      yp: Math.max(0, Math.min(1 - f.hp, drag.origYp + pos.y - drag.startY)),
+    };
+    rerender(currentFramePos);
   }
 
-  function endDrag() {
-    drag.active = false;
-    previewCanvas.style.cursor = '';
-  }
+  function endDrag() { drag.active = false; previewCanvas.style.cursor = ''; }
 
   previewCanvas.addEventListener('mousedown', startDrag);
   previewCanvas.addEventListener('touchstart', startDrag, { passive: false });
@@ -188,22 +206,19 @@
   document.addEventListener('touchend', endDrag);
 
   // ---- Download ----
-
   downloadBtn.addEventListener('click', () => {
-    if (!previewCanvas || !activeTemplate) return;
+    if (!activeTemplate) return;
     try {
       const a = document.createElement('a');
       a.download = `mockup-${activeTemplate.id}.png`;
       a.href = previewCanvas.toDataURL('image/png');
       a.click();
-    } catch (err) {
+    } catch (e) {
       alert('Importez votre image avant de télécharger.');
     }
   });
 
   // ---- Init ----
-
   buildCards();
   preloadBgs();
-
 })();
