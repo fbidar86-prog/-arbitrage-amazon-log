@@ -4,6 +4,7 @@
   let userImage = null;
   let activeTemplate = null;
   let currentFramePos = null;
+  let showGuide = true;
 
   const drag = { active: false, startX: 0, startY: 0, origXp: 0, origYp: 0 };
 
@@ -22,6 +23,37 @@
   const resetBtn         = document.getElementById('resetBtn');
   const sizeUpBtn        = document.getElementById('sizeUpBtn');
   const sizeDownBtn      = document.getElementById('sizeDownBtn');
+  const guideToggle      = document.getElementById('guideToggle');
+
+  // ---- Frame guide overlay ----
+  function drawGuideOverlay() {
+    if (!activeTemplate || !showGuide) return;
+    const W = previewCanvas.width / 2;
+    const H = previewCanvas.height / 2;
+    const ctx = previewCanvas.getContext('2d');
+    const frames = currentFramePos ? [currentFramePos] : activeTemplate.frames;
+
+    for (const f of frames) {
+      const x = W * f.xp, y = H * f.yp, w = W * f.wp, h = H * f.hp;
+      ctx.save();
+      ctx.fillStyle = 'rgba(232,130,74,0.07)';
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeStyle = 'rgba(232,130,74,0.85)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 3]);
+      ctx.strokeRect(x, y, w, h);
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(232,130,74,1)';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      const cs = 10;
+      ctx.beginPath(); ctx.moveTo(x + cs, y); ctx.lineTo(x, y); ctx.lineTo(x, y + cs); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + w - cs, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + cs); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x, y + h - cs); ctx.lineTo(x, y + h); ctx.lineTo(x + cs, y + h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + w - cs, y + h); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w, y + h - cs); ctx.stroke();
+      ctx.restore();
+    }
+  }
 
   // ---- Preload background photos ----
   function preloadBgs() {
@@ -107,13 +139,14 @@
   function rerender(overrides) {
     if (!activeTemplate) return;
     activeTemplate.render(previewCanvas, userImage, overrides ? [overrides] : null);
+    drawGuideOverlay();
   }
 
   function openPreview(tpl) {
     activeTemplate = tpl;
     currentFramePos = null;
     modalTemplateName.textContent = tpl.name;
-    tpl.render(previewCanvas, userImage);
+    rerender(null);
     modalOverlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
   }
@@ -205,14 +238,30 @@
   document.addEventListener('mouseup', endDrag);
   document.addEventListener('touchend', endDrag);
 
+  // ---- Guide toggle ----
+  guideToggle.addEventListener('click', () => {
+    showGuide = !showGuide;
+    guideToggle.textContent = showGuide ? 'Masquer les guides' : 'Afficher les guides';
+    rerender(currentFramePos);
+  });
+
   // ---- Download ----
   downloadBtn.addEventListener('click', () => {
     if (!activeTemplate) return;
     try {
+      const wasGuideOn = showGuide;
+      if (wasGuideOn) {
+        showGuide = false;
+        rerender(currentFramePos);
+      }
       const a = document.createElement('a');
       a.download = `mockup-${activeTemplate.id}.png`;
       a.href = previewCanvas.toDataURL('image/png');
       a.click();
+      if (wasGuideOn) {
+        showGuide = true;
+        rerender(currentFramePos);
+      }
     } catch (e) {
       alert('Importez votre image avant de télécharger.');
     }
