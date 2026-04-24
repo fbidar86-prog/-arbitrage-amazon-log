@@ -3,40 +3,39 @@
 
   let userImage = null;
   let activeTemplate = null;
-  let bgLoaded = false;
+  let currentFramePos = null; // overrides template default when user drags
 
-  const uploadZone     = document.getElementById('uploadZone');
-  const uploadBtn      = document.getElementById('uploadBtn');
-  const fileInput      = document.getElementById('fileInput');
-  const imageStrip     = document.getElementById('imageStrip');
-  const currentThumb   = document.getElementById('currentThumb');
-  const changeImageBtn = document.getElementById('changeImageBtn');
-  const templatesGrid  = document.getElementById('templatesGrid');
-  const modalOverlay   = document.getElementById('modalOverlay');
-  const modalClose     = document.getElementById('modalClose');
+  const drag = { active: false, startX: 0, startY: 0, origXp: 0, origYp: 0 };
+
+  const uploadZone      = document.getElementById('uploadZone');
+  const uploadBtn       = document.getElementById('uploadBtn');
+  const fileInput       = document.getElementById('fileInput');
+  const imageStrip      = document.getElementById('imageStrip');
+  const currentThumb    = document.getElementById('currentThumb');
+  const changeImageBtn  = document.getElementById('changeImageBtn');
+  const templatesGrid   = document.getElementById('templatesGrid');
+  const modalOverlay    = document.getElementById('modalOverlay');
+  const modalClose      = document.getElementById('modalClose');
   const modalTemplateName = document.getElementById('modalTemplateName');
-  const previewCanvas  = document.getElementById('previewCanvas');
-  const downloadBtn    = document.getElementById('downloadBtn');
+  const previewCanvas   = document.getElementById('previewCanvas');
+  const downloadBtn     = document.getElementById('downloadBtn');
+  const resetBtn        = document.getElementById('resetBtn');
 
   // ---- Preload background photos ----
 
   function preloadBgs() {
-    let done = 0;
     TEMPLATES.forEach(tpl => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.onload = () => {
         tpl._bg = img;
-        done++;
-        // Re-render card once its bg is ready
-        const card = document.querySelector(`[data-id="${tpl.id}"] .template-canvas-wrap canvas`);
-        if (card) tpl.render(card, userImage);
-        if (done === TEMPLATES.length) bgLoaded = true;
+        const c = document.querySelector(`[data-id="${tpl.id}"] canvas`);
+        if (c) tpl.render(c, userImage);
       };
       img.onerror = () => {
         tpl._bgFailed = true;
-        const card = document.querySelector(`[data-id="${tpl.id}"] .template-canvas-wrap canvas`);
-        if (card) tpl.render(card, userImage);
+        const c = document.querySelector(`[data-id="${tpl.id}"] canvas`);
+        if (c) tpl.render(c, userImage);
       };
       img.src = tpl.bgUrl;
     });
@@ -65,21 +64,16 @@
       userImage = img;
       currentThumb.src = url;
       imageStrip.style.display = '';
-      refreshAllCards();
+      document.querySelectorAll('.template-card').forEach(card => {
+        const tpl = TEMPLATES.find(t => t.id === card.dataset.id);
+        const c = card.querySelector('canvas');
+        if (tpl && c) tpl.render(c, userImage);
+      });
     };
     img.src = url;
   }
 
-  // ---- Cards ----
-
-  function refreshAllCards() {
-    document.querySelectorAll('.template-card').forEach(card => {
-      const tpl = TEMPLATES.find(t => t.id === card.dataset.id);
-      if (!tpl) return;
-      const c = card.querySelector('canvas');
-      if (c) tpl.render(c, userImage);
-    });
-  }
+  // ---- Template cards ----
 
   function buildCards() {
     templatesGrid.innerHTML = '';
@@ -109,6 +103,7 @@
 
   function openPreview(tpl) {
     activeTemplate = tpl;
+    currentFramePos = null;
     modalTemplateName.textContent = tpl.name;
     tpl.render(previewCanvas, userImage);
     modalOverlay.style.display = 'flex';
@@ -124,6 +119,74 @@
   modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
+  resetBtn.addEventListener('click', () => {
+    currentFramePos = null;
+    if (activeTemplate) activeTemplate.render(previewCanvas, userImage);
+  });
+
+  // ---- Drag to reposition frame ----
+
+  function getActiveFrame() {
+    if (!activeTemplate) return null;
+    return currentFramePos || activeTemplate.frames[0];
+  }
+
+  function posOnCanvas(e) {
+    const rect = previewCanvas.getBoundingClientRect();
+    const src = e.touches ? e.touches[0] : e;
+    return {
+      x: (src.clientX - rect.left) / rect.width,
+      y: (src.clientY - rect.top) / rect.height
+    };
+  }
+
+  function hitFrame(pos) {
+    const f = getActiveFrame();
+    if (!f) return false;
+    return pos.x >= f.xp && pos.x <= f.xp + f.wp &&
+           pos.y >= f.yp && pos.y <= f.yp + f.hp;
+  }
+
+  function startDrag(e) {
+    const pos = posOnCanvas(e);
+    if (!hitFrame(pos)) return;
+    e.preventDefault();
+    const f = getActiveFrame();
+    drag.active = true;
+    drag.startX = pos.x;
+    drag.startY = pos.y;
+    drag.origXp = f.xp;
+    drag.origYp = f.yp;
+    previewCanvas.style.cursor = 'grabbing';
+  }
+
+  function onDrag(e) {
+    if (!drag.active) {
+      if (!e.touches) previewCanvas.style.cursor = hitFrame(posOnCanvas(e)) ? 'grab' : 'default';
+      return;
+    }
+    e.preventDefault();
+    const pos = posOnCanvas(e);
+    const f = getActiveFrame();
+    if (!f) return;
+    const newXp = Math.max(0, Math.min(1 - f.wp, drag.origXp + pos.x - drag.startX));
+    const newYp = Math.max(0, Math.min(1 - f.hp, drag.origYp + pos.y - drag.startY));
+    currentFramePos = { ...f, xp: newXp, yp: newYp };
+    activeTemplate.render(previewCanvas, userImage, [currentFramePos]);
+  }
+
+  function endDrag() {
+    drag.active = false;
+    previewCanvas.style.cursor = '';
+  }
+
+  previewCanvas.addEventListener('mousedown', startDrag);
+  previewCanvas.addEventListener('touchstart', startDrag, { passive: false });
+  previewCanvas.addEventListener('mousemove', onDrag);
+  previewCanvas.addEventListener('touchmove', onDrag, { passive: false });
+  document.addEventListener('mouseup', endDrag);
+  document.addEventListener('touchend', endDrag);
+
   // ---- Download ----
 
   downloadBtn.addEventListener('click', () => {
@@ -133,8 +196,8 @@
       a.download = `mockup-${activeTemplate.id}.png`;
       a.href = previewCanvas.toDataURL('image/png');
       a.click();
-    } catch (e) {
-      alert('Erreur lors du téléchargement. Assurez-vous d\'importer votre image d\'abord.');
+    } catch (err) {
+      alert('Importez votre image avant de télécharger.');
     }
   });
 

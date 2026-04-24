@@ -265,8 +265,9 @@ body {
 .modal-canvas-wrap {
   width: 100%;
   display: flex;
-  justify-content: center;
-  margin-bottom: 24px;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
 .modal-canvas-wrap canvas {
@@ -274,6 +275,14 @@ body {
   max-height: 60vh;
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow);
+  display: block;
+}
+
+.drag-hint {
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: center;
 }
 
 .modal-actions {
@@ -284,10 +293,24 @@ body {
   gap: 12px;
 }
 
+.modal-left { display: flex; flex-direction: column; gap: 6px; }
+
 .modal-template-name {
   font-size: 1.1rem;
   font-weight: 600;
 }
+
+.btn-reset {
+  padding: 6px 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.btn-reset:hover { color: var(--text); }
 
 .btn-download { padding: 12px 28px; font-size: 1rem; }
 
