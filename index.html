@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Etsy Mockup Generator</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="header">
+    <div class="container">
+      <div class="logo">Mockup Generator</div>
+      <p class="tagline">Créez des photos produits professionnelles pour Etsy</p>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="container">
+
+      <!-- Upload Zone -->
+      <section class="upload-section" id="uploadSection">
+        <div class="upload-zone" id="uploadZone">
+          <div class="upload-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </div>
+          <h2>Glissez votre design ici</h2>
+          <p class="upload-sub">ou cliquez pour sélectionner une image</p>
+          <p class="upload-hint">PNG, JPG, WEBP</p>
+          <button class="btn btn-primary" id="uploadBtn">Choisir une image</button>
+          <input type="file" id="fileInput" accept="image/*" hidden>
+        </div>
+      </section>
+
+      <!-- Image Preview Strip -->
+      <section class="image-strip" id="imageStrip" style="display:none">
+        <div class="strip-inner">
+          <div class="current-image-wrap">
+            <img id="currentThumb" src="" alt="Votre design">
+            <button class="btn-change" id="changeImageBtn">Changer d'image</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Templates Gallery -->
+      <section class="templates-section">
+        <div class="templates-header">
+          <h2>Choisissez une mise en scene</h2>
+        </div>
+        <div class="templates-grid" id="templatesGrid"></div>
+      </section>
+
+      <!-- Preview Modal -->
+      <div class="modal-overlay" id="modalOverlay" style="display:none">
+        <div class="modal">
+          <button class="modal-close" id="modalClose">&times;</button>
+          <div class="modal-body">
+            <div class="modal-canvas-wrap">
+              <canvas id="previewCanvas"></canvas>
+            </div>
+            <div class="modal-actions">
+              <p class="modal-template-name" id="modalTemplateName"></p>
+              <button class="btn btn-primary btn-download" id="downloadBtn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Télécharger PNG
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>Fait pour les vendeurs Etsy</p>
+    </div>
+  </footer>
+
+  <script src="js/templates.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
