@@ -3,23 +3,21 @@
 
   let userImage = null;
   let activeTemplate = null;
-  let activeCategory = 'all';
 
-  const uploadZone = document.getElementById('uploadZone');
-  const uploadBtn = document.getElementById('uploadBtn');
-  const fileInput = document.getElementById('fileInput');
-  const imageStrip = document.getElementById('imageStrip');
-  const currentThumb = document.getElementById('currentThumb');
+  const uploadZone    = document.getElementById('uploadZone');
+  const uploadBtn     = document.getElementById('uploadBtn');
+  const fileInput     = document.getElementById('fileInput');
+  const imageStrip    = document.getElementById('imageStrip');
+  const currentThumb  = document.getElementById('currentThumb');
   const changeImageBtn = document.getElementById('changeImageBtn');
   const templatesGrid = document.getElementById('templatesGrid');
-  const categoryTabs = document.getElementById('categoryTabs');
-  const modalOverlay = document.getElementById('modalOverlay');
-  const modalClose = document.getElementById('modalClose');
+  const modalOverlay  = document.getElementById('modalOverlay');
+  const modalClose    = document.getElementById('modalClose');
   const modalTemplateName = document.getElementById('modalTemplateName');
   const previewCanvas = document.getElementById('previewCanvas');
-  const downloadBtn = document.getElementById('downloadBtn');
+  const downloadBtn   = document.getElementById('downloadBtn');
 
-  // ---- Upload handling ----
+  // ---- Upload ----
 
   uploadZone.addEventListener('click', () => fileInput.click());
   uploadBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
@@ -45,77 +43,43 @@
       userImage = img;
       currentThumb.src = url;
       imageStrip.style.display = '';
-      renderAllThumbnails();
+      renderAllCards();
     };
     img.src = url;
   }
 
-  // ---- Category tabs ----
-
-  categoryTabs.addEventListener('click', (e) => {
-    const tab = e.target.closest('.tab');
-    if (!tab) return;
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    activeCategory = tab.dataset.category;
-    renderTemplateCards();
-  });
-
   // ---- Template cards ----
 
-  function renderTemplateCards() {
-    const filtered = activeCategory === 'all'
-      ? TEMPLATES
-      : TEMPLATES.filter(t => t.category === activeCategory);
-
+  function renderAllCards() {
     templatesGrid.innerHTML = '';
-    filtered.forEach(tpl => {
+    TEMPLATES.forEach(tpl => {
       const card = document.createElement('div');
       card.className = 'template-card';
-      card.dataset.id = tpl.id;
 
-      const canvasWrap = document.createElement('div');
-      canvasWrap.className = 'template-canvas-wrap';
+      const wrap = document.createElement('div');
+      wrap.className = 'template-canvas-wrap';
 
-      if (userImage) {
-        const c = document.createElement('canvas');
-        canvasWrap.appendChild(c);
-        renderTemplate(tpl, c, userImage);
-      } else {
-        const placeholder = document.createElement('div');
-        placeholder.className = 'template-no-image';
-        placeholder.textContent = 'Importez une image pour voir le rendu';
-        canvasWrap.appendChild(placeholder);
-      }
+      const c = document.createElement('canvas');
+      wrap.appendChild(c);
+      tpl.render(c, userImage);
 
       const info = document.createElement('div');
       info.className = 'template-card-info';
-      info.innerHTML = `
-        <div class="template-card-name">${tpl.name}</div>
-        <div class="template-card-cat">${tpl.category}</div>
-      `;
+      info.innerHTML = `<div class="template-card-name">${tpl.name}</div>`;
 
-      card.appendChild(canvasWrap);
+      card.appendChild(wrap);
       card.appendChild(info);
       card.addEventListener('click', () => openPreview(tpl));
       templatesGrid.appendChild(card);
     });
   }
 
-  function renderTemplate(tpl, canvas, img) {
-    tpl.render(canvas, img);
-  }
-
-  function renderAllThumbnails() {
-    renderTemplateCards();
-  }
-
-  // ---- Preview modal ----
+  // ---- Modal preview ----
 
   function openPreview(tpl) {
     activeTemplate = tpl;
     modalTemplateName.textContent = tpl.name;
-    renderTemplate(tpl, previewCanvas, userImage);
+    tpl.render(previewCanvas, userImage);
     modalOverlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
   }
@@ -141,6 +105,6 @@
 
   // ---- Init ----
 
-  renderTemplateCards();
+  renderAllCards();
 
 })();

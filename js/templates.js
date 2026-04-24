@@ -1,666 +1,441 @@
-/**
- * Mockup template definitions.
- * Each template has a render(canvas, userImg) function that draws the full mockup.
- * thumbnailSize: short side size used when drawing thumbnails.
- */
+// ---- Helpers ----
 
-function drawImageFit(ctx, img, x, y, w, h, mode = 'contain') {
+function drawImageFit(ctx, img, x, y, w, h, mode) {
+  if (!img) return;
   const ia = img.naturalWidth / img.naturalHeight;
   const aa = w / h;
-  let dw, dh, dx, dy;
-
+  let dw, dh;
   if (mode === 'cover') {
     if (ia > aa) { dh = h; dw = dh * ia; } else { dw = w; dh = dw / ia; }
   } else {
     if (ia > aa) { dw = w; dh = dw / ia; } else { dh = h; dw = dh * ia; }
   }
-  dx = x + (w - dw) / 2;
-  dy = y + (h - dh) / 2;
-  ctx.drawImage(img, dx, dy, dw, dh);
+  ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
 }
 
-function wallBg(ctx, w, h, color = '#E8E4DC') {
+function drawFloor(ctx, W, H, hy, color, lineColor) {
   ctx.fillStyle = color;
-  ctx.fillRect(0, 0, w, h);
-}
-
-function dropShadow(ctx, fn) {
+  ctx.fillRect(0, hy, W, H - hy);
+  const fg = ctx.createLinearGradient(0, hy, 0, H);
+  fg.addColorStop(0, 'rgba(255,255,255,0.18)');
+  fg.addColorStop(0.4, 'rgba(255,255,255,0.04)');
+  fg.addColorStop(1, 'rgba(0,0,0,0.06)');
+  ctx.fillStyle = fg;
+  ctx.fillRect(0, hy, W, H - hy);
   ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,0.35)';
-  ctx.shadowBlur = 28;
-  ctx.shadowOffsetX = 6;
-  ctx.shadowOffsetY = 10;
-  fn();
+  ctx.beginPath();
+  ctx.rect(0, hy, W, H - hy);
+  ctx.clip();
+  const vx = W / 2;
+  ctx.strokeStyle = lineColor || 'rgba(0,0,0,0.065)';
+  ctx.lineWidth = 0.8;
+  for (let i = 0; i <= 14; i++) {
+    ctx.beginPath();
+    ctx.moveTo(vx, hy);
+    ctx.lineTo((i / 14) * W, H * 1.6);
+    ctx.stroke();
+  }
+  for (let i = 1; i <= 6; i++) {
+    const t = Math.pow(i / 6, 0.6);
+    ctx.beginPath();
+    ctx.moveTo(0, hy + (H - hy) * t);
+    ctx.lineTo(W, hy + (H - hy) * t);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
-function drawFramedPrint(canvas, userImg, opts) {
-  const { cw, ch, frameColor, frameW, matColor, matW, bgColor } = opts;
-  canvas.width = cw * 2;
-  canvas.height = ch * 2;
-  const ctx = canvas.getContext('2d');
-  ctx.scale(2, 2);
+function drawWall(ctx, W, hy, topColor, bottomColor) {
+  const g = ctx.createLinearGradient(0, 0, 0, hy);
+  g.addColorStop(0, topColor);
+  g.addColorStop(1, bottomColor || topColor);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, hy + 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.14)';
+  ctx.fillRect(0, hy - 4, W, 4);
+}
 
-  wallBg(ctx, cw, ch, bgColor);
+function drawBricks(ctx, W, hy, baseColor) {
+  ctx.fillStyle = baseColor;
+  ctx.fillRect(0, 0, W, hy);
+  const bH = 13, bW = 30, gap = 3;
+  for (let row = 0; row * (bH + gap) < hy + bH; row++) {
+    const off = (row % 2) * 16;
+    for (let col = -1; col * (bW + gap) - off < W; col++) {
+      const bx = col * (bW + gap) - off;
+      const by = row * (bH + gap);
+      const v = Math.sin(row * 5 + col * 11) * 12;
+      ctx.fillStyle = `rgba(${140 + v},${80 + v},${60 + v},1)`;
+      ctx.fillRect(bx, by, bW, bH);
+      ctx.fillStyle = 'rgba(255,255,255,0.07)';
+      ctx.fillRect(bx, by, bW, 2);
+    }
+  }
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.fillRect(0, hy - 4, W, 4);
+}
 
-  const fx = 40, fy = 40, fw = cw - 80, fh = ch - 80;
+function drawFrame(ctx, userImg, x, y, w, h, opts) {
+  const { frameColor, ft, matColor, mt, glass = true } = opts;
 
-  dropShadow(ctx, () => {
-    ctx.fillStyle = frameColor;
-    ctx.fillRect(fx, fy, fw, fh);
-  });
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.45)';
+  ctx.shadowBlur = 28;
+  ctx.shadowOffsetX = 5;
+  ctx.shadowOffsetY = 12;
+  ctx.fillStyle = frameColor;
+  ctx.fillRect(x, y, w, h);
+  ctx.restore();
 
-  // Frame gradient (light edge)
-  const fg = ctx.createLinearGradient(fx, fy, fx + fw, fy + fh);
-  fg.addColorStop(0, 'rgba(255,255,255,0.18)');
-  fg.addColorStop(0.5, 'rgba(0,0,0,0)');
-  fg.addColorStop(1, 'rgba(0,0,0,0.25)');
-  ctx.fillStyle = fg;
-  ctx.fillRect(fx, fy, fw, fh);
+  ctx.fillStyle = frameColor;
+  ctx.fillRect(x, y, w, h);
+
+  // Bevel top+left highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.20)';
+  ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+w,y); ctx.lineTo(x+w-ft,y+ft); ctx.lineTo(x+ft,y+ft); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+ft,y+ft); ctx.lineTo(x+ft,y+h-ft); ctx.lineTo(x,y+h); ctx.closePath(); ctx.fill();
+  // Bevel bottom+right shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.beginPath(); ctx.moveTo(x,y+h); ctx.lineTo(x+w,y+h); ctx.lineTo(x+w-ft,y+h-ft); ctx.lineTo(x+ft,y+h-ft); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x+w,y); ctx.lineTo(x+w,y+h); ctx.lineTo(x+w-ft,y+h-ft); ctx.lineTo(x+w-ft,y+ft); ctx.closePath(); ctx.fill();
 
   // Mat
-  ctx.fillStyle = matColor;
-  ctx.fillRect(fx + frameW, fy + frameW, fw - frameW * 2, fh - frameW * 2);
+  const mx = x + ft, my = y + ft, mw = w - ft * 2, mh = h - ft * 2;
+  if (matColor) {
+    ctx.fillStyle = matColor;
+    ctx.fillRect(mx, my, mw, mh);
+    const msg = ctx.createLinearGradient(mx, my, mx, my + mt * 3);
+    msg.addColorStop(0, 'rgba(0,0,0,0.10)'); msg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = msg; ctx.fillRect(mx, my, mw, mh);
+    const msg2 = ctx.createLinearGradient(mx, my, mx + mt * 3, my);
+    msg2.addColorStop(0, 'rgba(0,0,0,0.06)'); msg2.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = msg2; ctx.fillRect(mx, my, mw, mh);
+  }
 
-  // Mat shadow (inner)
-  const mx = fx + frameW, my = fy + frameW, mw = fw - frameW * 2, mh = fh - frameW * 2;
-  const mg = ctx.createLinearGradient(mx, my, mx, my + matW * 2);
-  mg.addColorStop(0, 'rgba(0,0,0,0.08)');
-  mg.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = mg;
-  ctx.fillRect(mx, my, mw, mh);
+  const imgX = mx + mt, imgY = my + mt, imgW = mw - mt * 2, imgH = mh - mt * 2;
 
   if (userImg) {
-    const ix = mx + matW, iy = my + matW, iw = mw - matW * 2, ih = mh - matW * 2;
     ctx.save();
-    ctx.beginPath();
-    ctx.rect(ix, iy, iw, ih);
-    ctx.clip();
-    drawImageFit(ctx, userImg, ix, iy, iw, ih, 'contain');
+    ctx.beginPath(); ctx.rect(imgX, imgY, imgW, imgH); ctx.clip();
+    drawImageFit(ctx, userImg, imgX, imgY, imgW, imgH, 'contain');
     ctx.restore();
-
-    // Glass glare
-    const glare = ctx.createLinearGradient(ix, iy, ix + iw * 0.5, iy + ih * 0.5);
-    glare.addColorStop(0, 'rgba(255,255,255,0.07)');
-    glare.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = glare;
-    ctx.fillRect(ix, iy, iw, ih);
+    if (glass) {
+      const gg = ctx.createLinearGradient(imgX, imgY, imgX + imgW * 0.65, imgY + imgH * 0.65);
+      gg.addColorStop(0, 'rgba(255,255,255,0.10)');
+      gg.addColorStop(0.5, 'rgba(255,255,255,0.03)');
+      gg.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = gg; ctx.fillRect(imgX, imgY, imgW, imgH);
+    }
+  } else {
+    ctx.fillStyle = '#D5D0C8';
+    ctx.fillRect(imgX, imgY, imgW, imgH);
+    ctx.setLineDash([5, 5]);
+    ctx.strokeStyle = '#AAAAAA'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(imgX + 12, imgY + 12, imgW - 24, imgH - 24);
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#999990';
+    ctx.font = `${Math.min(imgW, imgH) * 0.09}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Votre image', imgX + imgW / 2, imgY + imgH / 2);
   }
 }
 
-function drawTshirt(ctx, W, H, shirtColor, isLight) {
-  ctx.beginPath();
-  ctx.moveTo(W * 0.37, H * 0.09);
-  ctx.bezierCurveTo(W * 0.39, H * 0.145, W * 0.61, H * 0.145, W * 0.63, H * 0.09);
-  ctx.lineTo(W * 0.84, H * 0.055);
-  ctx.lineTo(W * 0.96, H * 0.24);
-  ctx.bezierCurveTo(W * 0.88, H * 0.27, W * 0.79, H * 0.29, W * 0.72, H * 0.29);
-  ctx.lineTo(W * 0.71, H * 0.91);
-  ctx.lineTo(W * 0.29, H * 0.91);
-  ctx.lineTo(W * 0.28, H * 0.29);
-  ctx.bezierCurveTo(W * 0.21, H * 0.29, W * 0.12, H * 0.27, W * 0.04, H * 0.24);
-  ctx.lineTo(W * 0.16, H * 0.055);
-  ctx.closePath();
-  ctx.fillStyle = shirtColor;
-  ctx.fill();
+function drawSofaSilhouette(ctx, x, y, w, h, color) {
+  ctx.fillStyle = color;
+  // Back
+  ctx.fillRect(x, y, w, h * 0.50);
+  // Seat
+  ctx.fillRect(x + w * 0.06, y + h * 0.46, w * 0.88, h * 0.42);
+  // Arms
+  ctx.fillRect(x, y + h * 0.10, w * 0.10, h * 0.80);
+  ctx.fillRect(x + w * 0.90, y + h * 0.10, w * 0.10, h * 0.80);
+  // Legs
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(x + w * 0.12, y + h * 0.88, w * 0.06, h * 0.12);
+  ctx.fillRect(x + w * 0.82, y + h * 0.88, w * 0.06, h * 0.12);
   // Highlight
-  const g = ctx.createLinearGradient(0, 0, W, H * 0.6);
-  g.addColorStop(0, 'rgba(255,255,255,0.14)');
-  g.addColorStop(1, 'rgba(0,0,0,0.10)');
-  ctx.fillStyle = g;
-  ctx.fill();
-  ctx.strokeStyle = isLight ? '#C8C0B8' : 'rgba(0,0,0,0.4)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-}
-
-function drawMug(ctx, W, H, mugColor, isLight) {
-  const bx = W * 0.12, by = H * 0.18, bw = W * 0.60, bh = H * 0.62;
-  // Body
-  ctx.beginPath();
-  ctx.moveTo(bx, by);
-  ctx.lineTo(bx + bw, by);
-  ctx.lineTo(bx + bw - 8, by + bh);
-  ctx.lineTo(bx + 8, by + bh);
-  ctx.closePath();
-  ctx.fillStyle = mugColor;
-  ctx.fill();
-  // Side gradient
-  const sg = ctx.createLinearGradient(bx, by, bx + bw, by);
-  sg.addColorStop(0, 'rgba(0,0,0,0.12)');
-  sg.addColorStop(0.3, 'rgba(255,255,255,0.10)');
-  sg.addColorStop(0.85, 'rgba(255,255,255,0.06)');
-  sg.addColorStop(1, 'rgba(0,0,0,0.18)');
+  const sg = ctx.createLinearGradient(x, y, x, y + h * 0.5);
+  sg.addColorStop(0, 'rgba(255,255,255,0.12)'); sg.addColorStop(1, 'rgba(0,0,0,0.10)');
   ctx.fillStyle = sg;
-  ctx.fill();
-  // Outline body
-  ctx.strokeStyle = isLight ? '#CCCCCC' : 'rgba(0,0,0,0.35)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-  // Handle
-  const hx = bx + bw + 5, hy = by + bh * 0.18, hr = bh * 0.24;
-  ctx.beginPath();
-  ctx.arc(hx + hr * 0.55, hy + hr, hr, -Math.PI * 0.55, Math.PI * 0.55);
-  ctx.strokeStyle = mugColor;
-  ctx.lineWidth = bw * 0.13;
-  ctx.stroke();
-  ctx.strokeStyle = isLight ? '#CCCCCC' : 'rgba(0,0,0,0.35)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-  // Top ellipse
-  ctx.beginPath();
-  ctx.ellipse(bx + bw / 2, by, bw / 2, bh * 0.065, 0, 0, Math.PI * 2);
-  ctx.fillStyle = '#BFBBBB';
-  ctx.fill();
-  ctx.strokeStyle = isLight ? '#CCCCCC' : 'rgba(0,0,0,0.2)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  // Bottom ellipse
-  ctx.beginPath();
-  ctx.ellipse(bx + bw / 2 - 4, by + bh, (bw - 16) / 2, bh * 0.05, 0, 0, Math.PI * 2);
-  ctx.fillStyle = mugColor;
-  ctx.fill();
-  ctx.strokeStyle = isLight ? '#CCCCCC' : 'rgba(0,0,0,0.2)';
-  ctx.stroke();
-
-  return { bx, by, bw, bh };
+  ctx.fillRect(x, y, w, h);
 }
+
+function drawPlantSilhouette(ctx, x, y, size, color) {
+  ctx.fillStyle = color;
+  // Pot
+  ctx.fillRect(x - size * 0.35, y + size * 0.55, size * 0.70, size * 0.45);
+  // Leaves
+  const leaves = [
+    [-0.6, -0.5, 0.4, 0.55, -0.6],
+    [0.5, -0.6, 0.38, 0.55, 0.5],
+    [-0.3, -0.9, 0.28, 0.60, -0.3],
+    [0.2, -0.95, 0.26, 0.65, 0.2],
+    [0.0, -1.1, 0.22, 0.65, 0],
+  ];
+  for (const [lx, ly, rx, ry, ang] of leaves) {
+    ctx.save();
+    ctx.translate(x + lx * size * 0.5, y + ly * size * 0.5);
+    ctx.rotate(ang * 0.5);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx * size, ry * size * 0.4, ang, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = size * 0.03;
+    ctx.beginPath();
+    ctx.moveTo(x, y + size * 0.55);
+    ctx.lineTo(x + lx * size * 0.5, y + ly * size * 0.5);
+    ctx.stroke();
+  }
+}
+
+// ---- Template definitions ----
 
 const TEMPLATES = [
-  // -------- IMPRESSIONS --------
   {
-    id: 'frame-portrait-dark',
-    name: 'Cadre Bois Sombre',
-    category: 'impressions',
-    aspect: 4 / 5,
-    render(canvas, userImg) {
-      drawFramedPrint(canvas, userImg, {
-        cw: 480, ch: 580,
-        frameColor: '#3B2517',
-        frameW: 28,
-        matColor: '#F8F5EF',
-        matW: 32,
-        bgColor: '#D9D4CC'
+    id: 'salon-blanc',
+    name: 'Salon Moderne',
+    render(canvas, img) {
+      const W = 800, H = 560;
+      canvas.width = W * 2; canvas.height = H * 2;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(2, 2);
+      const hy = H * 0.60;
+
+      drawWall(ctx, W, hy, '#EAE7E1', '#E0DCD4');
+      drawFloor(ctx, W, H, hy, '#C8B89A', 'rgba(0,0,0,0.06)');
+
+      // Sofa (partially visible at bottom)
+      drawSofaSilhouette(ctx, W * 0.15, H * 0.72, W * 0.70, H * 0.36, '#B8A898');
+
+      // Main portrait frame center
+      const fw = 210, fh = 270;
+      const fx = (W - fw) / 2, fy = hy * 0.12;
+      drawFrame(ctx, img, fx, fy, fw, fh, {
+        frameColor: '#F2EEE8', ft: 18, matColor: '#FAF9F6', mt: 22
       });
     }
   },
   {
-    id: 'frame-landscape-dark',
-    name: 'Cadre Bois Paysage',
-    category: 'impressions',
-    aspect: 5 / 4,
-    render(canvas, userImg) {
-      drawFramedPrint(canvas, userImg, {
-        cw: 580, ch: 480,
-        frameColor: '#3B2517',
-        frameW: 26,
-        matColor: '#F8F5EF',
-        matW: 28,
-        bgColor: '#D9D4CC'
-      });
-    }
-  },
-  {
-    id: 'frame-portrait-white',
-    name: 'Cadre Blanc Portrait',
-    category: 'impressions',
-    aspect: 4 / 5,
-    render(canvas, userImg) {
-      drawFramedPrint(canvas, userImg, {
-        cw: 480, ch: 580,
-        frameColor: '#EBEBEB',
-        frameW: 26,
-        matColor: '#FFFFFF',
-        matW: 28,
-        bgColor: '#C8C5BF'
-      });
-    }
-  },
-  {
-    id: 'frame-square-gold',
-    name: 'Cadre Or Carre',
-    category: 'impressions',
-    aspect: 1,
-    render(canvas, userImg) {
-      drawFramedPrint(canvas, userImg, {
-        cw: 520, ch: 520,
-        frameColor: '#B8962E',
-        frameW: 24,
-        matColor: '#FAF8F3',
-        matW: 24,
-        bgColor: '#E2DDD6'
-      });
-    }
-  },
-  {
-    id: 'canvas-art',
-    name: 'Toile Tendue',
-    category: 'impressions',
-    aspect: 1,
-    render(canvas, userImg) {
-      const CW = 520, CH = 520;
-      canvas.width = CW * 2;
-      canvas.height = CH * 2;
+    id: 'salon-sombre',
+    name: 'Salon Sombre',
+    render(canvas, img) {
+      const W = 800, H = 560;
+      canvas.width = W * 2; canvas.height = H * 2;
       const ctx = canvas.getContext('2d');
       ctx.scale(2, 2);
+      const hy = H * 0.62;
 
-      wallBg(ctx, CW, CH, '#D5D0C8');
+      drawWall(ctx, W, hy, '#2A2D30', '#1E2124');
+      drawFloor(ctx, W, H, hy, '#3A3028', 'rgba(0,0,0,0.12)');
 
-      const px = 50, py = 50, pw = CW - 100, ph = CH - 100;
-      const depth = 14;
+      // Ambient spot light on frame
+      const spotX = W / 2, spotY = -60;
+      const spot = ctx.createRadialGradient(spotX, spotY, 20, spotX, spotY, 420);
+      spot.addColorStop(0, 'rgba(255,240,200,0.18)');
+      spot.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = spot;
+      ctx.fillRect(0, 0, W, hy);
 
-      dropShadow(ctx, () => {
-        ctx.fillStyle = '#F2EDE6';
-        ctx.fillRect(px, py, pw, ph);
+      const fw = 210, fh = 270;
+      const fx = (W - fw) / 2, fy = hy * 0.10;
+      drawFrame(ctx, img, fx, fy, fw, fh, {
+        frameColor: '#1A1714', ft: 20, matColor: '#F5F3EE', mt: 24
       });
 
-      // Side panels (3D canvas depth)
-      // Right side
-      ctx.beginPath();
-      ctx.moveTo(px + pw, py);
-      ctx.lineTo(px + pw + depth, py + depth);
-      ctx.lineTo(px + pw + depth, py + ph + depth);
-      ctx.lineTo(px + pw, py + ph);
-      ctx.closePath();
-      ctx.fillStyle = '#B5AFA6';
-      ctx.fill();
-      // Bottom side
-      ctx.beginPath();
-      ctx.moveTo(px, py + ph);
-      ctx.lineTo(px + depth, py + ph + depth);
-      ctx.lineTo(px + pw + depth, py + ph + depth);
-      ctx.lineTo(px + pw, py + ph);
-      ctx.closePath();
-      ctx.fillStyle = '#9E9890';
-      ctx.fill();
-
-      if (userImg) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(px, py, pw, ph);
-        ctx.clip();
-        drawImageFit(ctx, userImg, px, py, pw, ph, 'cover');
-        ctx.restore();
-      }
-
-      // Canvas texture overlay
-      ctx.strokeStyle = 'rgba(0,0,0,0.06)';
-      ctx.lineWidth = 1;
-      for (let i = py; i < py + ph; i += 4) {
-        ctx.beginPath();
-        ctx.moveTo(px, i);
-        ctx.lineTo(px + pw, i);
-        ctx.stroke();
-      }
-
-      // Wooden stretcher bars visible on edges
-      const edgeG = ctx.createLinearGradient(px, py, px + 10, py);
-      edgeG.addColorStop(0, 'rgba(0,0,0,0.15)');
-      edgeG.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = edgeG;
-      ctx.fillRect(px, py, pw, ph);
-    }
-  },
-
-  // -------- VETEMENTS --------
-  {
-    id: 'tshirt-white',
-    name: 'T-Shirt Blanc',
-    category: 'vetements',
-    aspect: 5 / 6,
-    render(canvas, userImg) {
-      const W = 500, H = 580;
-      canvas.width = W * 2;
-      canvas.height = H * 2;
-      const ctx = canvas.getContext('2d');
-      ctx.scale(2, 2);
-
-      wallBg(ctx, W, H, '#E8E4DC');
-
-      dropShadow(ctx, () => { drawTshirt(ctx, W, H, '#FFFFFF', true); });
-      drawTshirt(ctx, W, H, '#FFFFFF', true);
-
-      if (userImg) {
-        const ix = W * 0.33, iy = H * 0.28, iw = W * 0.34, ih = H * 0.34;
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(ix, iy, iw, ih);
-        ctx.clip();
-        drawImageFit(ctx, userImg, ix, iy, iw, ih, 'contain');
-        ctx.restore();
-      }
+      drawSofaSilhouette(ctx, W * 0.10, H * 0.74, W * 0.80, H * 0.32, '#2E2924');
     }
   },
   {
-    id: 'tshirt-black',
-    name: 'T-Shirt Noir',
-    category: 'vetements',
-    aspect: 5 / 6,
-    render(canvas, userImg) {
-      const W = 500, H = 580;
-      canvas.width = W * 2;
-      canvas.height = H * 2;
+    id: 'scandinave',
+    name: 'Interieur Scandinave',
+    render(canvas, img) {
+      const W = 800, H = 560;
+      canvas.width = W * 2; canvas.height = H * 2;
       const ctx = canvas.getContext('2d');
       ctx.scale(2, 2);
+      const hy = H * 0.62;
 
-      wallBg(ctx, W, H, '#E8E4DC');
+      drawWall(ctx, W, hy, '#F8F6F3', '#F2EFE9');
+      drawFloor(ctx, W, H, hy, '#D4C4A8', 'rgba(0,0,0,0.05)');
 
-      dropShadow(ctx, () => { drawTshirt(ctx, W, H, '#1C1C1C', false); });
-      drawTshirt(ctx, W, H, '#1C1C1C', false);
+      // Plant on left
+      drawPlantSilhouette(ctx, W * 0.12, hy * 0.65, 70, '#6B8C5A');
 
-      if (userImg) {
-        const ix = W * 0.33, iy = H * 0.28, iw = W * 0.34, ih = H * 0.34;
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(ix, iy, iw, ih);
-        ctx.clip();
-        drawImageFit(ctx, userImg, ix, iy, iw, ih, 'contain');
-        ctx.restore();
-      }
-    }
-  },
-  {
-    id: 'tshirt-beige',
-    name: 'T-Shirt Beige',
-    category: 'vetements',
-    aspect: 5 / 6,
-    render(canvas, userImg) {
-      const W = 500, H = 580;
-      canvas.width = W * 2;
-      canvas.height = H * 2;
-      const ctx = canvas.getContext('2d');
-      ctx.scale(2, 2);
-
-      wallBg(ctx, W, H, '#E8E4DC');
-
-      dropShadow(ctx, () => { drawTshirt(ctx, W, H, '#D4C5A9', true); });
-      drawTshirt(ctx, W, H, '#D4C5A9', true);
-
-      if (userImg) {
-        const ix = W * 0.33, iy = H * 0.28, iw = W * 0.34, ih = H * 0.34;
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(ix, iy, iw, ih);
-        ctx.clip();
-        drawImageFit(ctx, userImg, ix, iy, iw, ih, 'contain');
-        ctx.restore();
-      }
-    }
-  },
-
-  // -------- ACCESSOIRES --------
-  {
-    id: 'mug-white',
-    name: 'Mug Blanc',
-    category: 'accessoires',
-    aspect: 6 / 5,
-    render(canvas, userImg) {
-      const W = 580, H = 480;
-      canvas.width = W * 2;
-      canvas.height = H * 2;
-      const ctx = canvas.getContext('2d');
-      ctx.scale(2, 2);
-
-      wallBg(ctx, W, H, '#D9D4CC');
-
-      dropShadow(ctx, () => {
-        const { bx, by, bw, bh } = drawMug(ctx, W, H, '#F8F8F8', true);
-      });
-      const { bx, by, bw, bh } = drawMug(ctx, W, H, '#F8F8F8', true);
-
-      if (userImg) {
-        const ix = bx + bw * 0.15, iy = by + bh * 0.12;
-        const iw = bw * 0.65, ih = bh * 0.65;
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(bx, by);
-        ctx.lineTo(bx + bw, by);
-        ctx.lineTo(bx + bw - 8, by + bh);
-        ctx.lineTo(bx + 8, by + bh);
-        ctx.closePath();
-        ctx.clip();
-        drawImageFit(ctx, userImg, ix, iy, iw, ih, 'contain');
-        ctx.restore();
-      }
-    }
-  },
-  {
-    id: 'mug-black',
-    name: 'Mug Noir',
-    category: 'accessoires',
-    aspect: 6 / 5,
-    render(canvas, userImg) {
-      const W = 580, H = 480;
-      canvas.width = W * 2;
-      canvas.height = H * 2;
-      const ctx = canvas.getContext('2d');
-      ctx.scale(2, 2);
-
-      wallBg(ctx, W, H, '#D9D4CC');
-
-      dropShadow(ctx, () => { drawMug(ctx, W, H, '#1A1A1A', false); });
-      const { bx, by, bw, bh } = drawMug(ctx, W, H, '#1A1A1A', false);
-
-      if (userImg) {
-        const ix = bx + bw * 0.15, iy = by + bh * 0.12;
-        const iw = bw * 0.65, ih = bh * 0.65;
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(bx, by);
-        ctx.lineTo(bx + bw, by);
-        ctx.lineTo(bx + bw - 8, by + bh);
-        ctx.lineTo(bx + 8, by + bh);
-        ctx.closePath();
-        ctx.clip();
-        drawImageFit(ctx, userImg, ix, iy, iw, ih, 'contain');
-        ctx.restore();
-      }
-    }
-  },
-  {
-    id: 'tote-bag',
-    name: 'Tote Bag',
-    category: 'accessoires',
-    aspect: 5 / 6,
-    render(canvas, userImg) {
-      const W = 480, H = 560;
-      canvas.width = W * 2;
-      canvas.height = H * 2;
-      const ctx = canvas.getContext('2d');
-      ctx.scale(2, 2);
-
-      wallBg(ctx, W, H, '#E8E4DC');
-
-      const bx = W * 0.14, by = H * 0.20, bw = W * 0.72, bh = H * 0.72;
-      const bagColor = '#C8B99A';
-
-      dropShadow(ctx, () => {
-        ctx.beginPath();
-        ctx.roundRect(bx, by, bw, bh, 8);
-        ctx.fillStyle = bagColor;
-        ctx.fill();
+      // Portrait frame slightly left of center
+      const fw = 190, fh = 240;
+      const fx = W * 0.44, fy = hy * 0.13;
+      drawFrame(ctx, img, fx, fy, fw, fh, {
+        frameColor: '#C4A882', ft: 14, matColor: '#FAFAF8', mt: 18
       });
 
-      // Bag body
-      ctx.beginPath();
-      ctx.roundRect(bx, by, bw, bh, 8);
-      ctx.fillStyle = bagColor;
-      ctx.fill();
-      // Gradient
-      const g = ctx.createLinearGradient(bx, by, bx + bw, by + bh);
-      g.addColorStop(0, 'rgba(255,255,255,0.15)');
-      g.addColorStop(1, 'rgba(0,0,0,0.08)');
-      ctx.fillStyle = g;
-      ctx.fill();
-      ctx.strokeStyle = '#9E8E78';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
+      // Small square frame right
+      const fw2 = 110, fh2 = 110;
+      drawFrame(ctx, img, W * 0.72, hy * 0.30, fw2, fh2, {
+        frameColor: '#C4A882', ft: 10, matColor: null, mt: 0
+      });
 
-      // Stitching border
-      ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.roundRect(bx + 10, by + 10, bw - 20, bh - 20, 4);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      drawSofaSilhouette(ctx, W * 0.18, H * 0.73, W * 0.64, H * 0.33, '#D8CEC0');
+    }
+  },
+  {
+    id: 'industriel',
+    name: 'Style Industriel',
+    render(canvas, img) {
+      const W = 800, H = 560;
+      canvas.width = W * 2; canvas.height = H * 2;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(2, 2);
+      const hy = H * 0.63;
 
-      // Straps (two arcs)
-      const s1x = bx + bw * 0.28, s2x = bx + bw * 0.55;
-      const sy = by;
-      ctx.lineWidth = 12;
-      ctx.strokeStyle = '#7A6850';
-      ctx.lineCap = 'round';
-      for (const sx of [s1x, s2x]) {
-        ctx.beginPath();
-        ctx.moveTo(sx, sy + 4);
-        ctx.bezierCurveTo(sx - 8, sy - 60, sx + bw * 0.17 - 8, sy - 60, sx + bw * 0.17, sy + 4);
-        ctx.stroke();
-      }
+      drawBricks(ctx, W, hy, '#8B6755');
+      drawFloor(ctx, W, H, hy, '#3A3630', 'rgba(0,0,0,0.12)');
 
-      if (userImg) {
-        const ix = bx + bw * 0.15, iy = by + bh * 0.15;
-        const iw = bw * 0.70, ih = bh * 0.60;
-        ctx.save();
-        ctx.beginPath();
-        ctx.roundRect(bx + 10, by + 10, bw - 20, bh - 20, 4);
-        ctx.clip();
-        drawImageFit(ctx, userImg, ix, iy, iw, ih, 'contain');
-        ctx.restore();
+      // Black iron frame
+      const fw = 200, fh = 265;
+      const fx = (W - fw) / 2, fy = hy * 0.09;
+      drawFrame(ctx, img, fx, fy, fw, fh, {
+        frameColor: '#18181A', ft: 10, matColor: null, mt: 0
+      });
+
+      drawSofaSilhouette(ctx, W * 0.08, H * 0.72, W * 0.84, H * 0.35, '#2A2624');
+    }
+  },
+  {
+    id: 'galerie-art',
+    name: 'Galerie d\'Art',
+    render(canvas, img) {
+      const W = 800, H = 560;
+      canvas.width = W * 2; canvas.height = H * 2;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(2, 2);
+      const hy = H * 0.64;
+
+      drawWall(ctx, W, hy, '#F0EDEA', '#E8E4DF');
+      drawFloor(ctx, W, H, hy, '#C8C0B4', 'rgba(0,0,0,0.05)');
+
+      // Gallery spotlight from ceiling
+      const spot = ctx.createRadialGradient(W / 2, 0, 30, W / 2, hy * 0.4, 300);
+      spot.addColorStop(0, 'rgba(255,248,230,0.22)');
+      spot.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = spot;
+      ctx.fillRect(0, 0, W, hy);
+
+      // Large landscape frame
+      const fw = 340, fh = 230;
+      const fx = (W - fw) / 2, fy = hy * 0.12;
+      drawFrame(ctx, img, fx, fy, fw, fh, {
+        frameColor: '#2C2820', ft: 14, matColor: '#FAFAFA', mt: 26
+      });
+
+      // Slim floor line
+      ctx.fillStyle = '#E0DAD2';
+      ctx.fillRect(W * 0.05, hy, W * 0.90, 2);
+    }
+  },
+  {
+    id: 'mur-galerie',
+    name: 'Mur Galerie',
+    render(canvas, img) {
+      const W = 800, H = 560;
+      canvas.width = W * 2; canvas.height = H * 2;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(2, 2);
+      const hy = H * 0.64;
+
+      drawWall(ctx, W, hy, '#F4F0EB', '#EDE8E2');
+      drawFloor(ctx, W, H, hy, '#CFC5B0', 'rgba(0,0,0,0.05)');
+
+      // Gallery wall arrangement — 5 frames
+      // Row 1: large left + 2 small right stacked
+      const cx = W * 0.50;
+      const topY = hy * 0.06;
+
+      // Large portrait left
+      drawFrame(ctx, img, cx - 280, topY, 170, 218, {
+        frameColor: '#1E1C1A', ft: 12, matColor: '#F8F7F4', mt: 16
+      });
+      // Medium landscape center-top
+      drawFrame(ctx, img, cx - 80, topY, 200, 130, {
+        frameColor: '#F0EBE3', ft: 14, matColor: '#FAFAF8', mt: 14
+      });
+      // Small square center-bottom
+      drawFrame(ctx, img, cx - 80, topY + 152, 200, 60, {
+        frameColor: '#1E1C1A', ft: 8, matColor: null, mt: 0
+      });
+      // Medium portrait right
+      drawFrame(ctx, img, cx + 140, topY, 130, 210, {
+        frameColor: '#C4A882', ft: 12, matColor: '#FAFAF8', mt: 14
+      });
+      // Small landscape bottom-left
+      drawFrame(ctx, img, cx - 280, topY + 240, 170, 80, {
+        frameColor: '#F0EBE3', ft: 10, matColor: null, mt: 0
+      });
+
+      drawSofaSilhouette(ctx, W * 0.18, H * 0.74, W * 0.64, H * 0.32, '#D0C8BC');
+    }
+  },
+  {
+    id: 'couloir',
+    name: 'Couloir Elegant',
+    render(canvas, img) {
+      const W = 800, H = 560;
+      canvas.width = W * 2; canvas.height = H * 2;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(2, 2);
+      const hy = H * 0.63;
+
+      drawWall(ctx, W, hy, '#EDE8E0', '#E4DED6');
+
+      // Wainscoting / wall panel effect
+      ctx.strokeStyle = 'rgba(0,0,0,0.08)'; ctx.lineWidth = 1;
+      ctx.strokeRect(W * 0.05, H * 0.05, W * 0.90, hy * 0.80);
+      ctx.strokeRect(W * 0.07, H * 0.07, W * 0.86, hy * 0.76);
+
+      drawFloor(ctx, W, H, hy, '#C0AE94', 'rgba(0,0,0,0.06)');
+
+      // Three portrait frames in a row
+      const fh = 200, fw = 130, gap = 28;
+      const totalW = fw * 3 + gap * 2;
+      const startX = (W - totalW) / 2;
+      const fy = hy * 0.10;
+      for (let i = 0; i < 3; i++) {
+        drawFrame(ctx, img, startX + i * (fw + gap), fy, fw, fh, {
+          frameColor: '#3A2E22', ft: 14, matColor: '#F8F6F2', mt: 16
+        });
       }
     }
   },
   {
-    id: 'pillow-white',
-    name: 'Coussin Blanc',
-    category: 'accessoires',
-    aspect: 1,
-    render(canvas, userImg) {
-      const W = 520, H = 520;
-      canvas.width = W * 2;
-      canvas.height = H * 2;
+    id: 'chambre',
+    name: 'Chambre Cosy',
+    render(canvas, img) {
+      const W = 800, H = 560;
+      canvas.width = W * 2; canvas.height = H * 2;
       const ctx = canvas.getContext('2d');
       ctx.scale(2, 2);
+      const hy = H * 0.60;
 
-      wallBg(ctx, W, H, '#D9D4CC');
+      drawWall(ctx, W, hy, '#EDE0D8', '#E5D7CE');
+      drawFloor(ctx, W, H, hy, '#D4C0A8', 'rgba(0,0,0,0.05)');
 
-      const px = 50, py = 50, pw = W - 100, ph = H - 100;
+      // Headboard hint (bed top)
+      ctx.fillStyle = '#8C7060';
+      ctx.beginPath();
+      ctx.roundRect(W * 0.20, hy * 0.85, W * 0.60, hy * 0.35, [8, 8, 0, 0]);
+      ctx.fill();
+      const hg = ctx.createLinearGradient(0, hy * 0.85, 0, hy * 1.2);
+      hg.addColorStop(0, 'rgba(255,255,255,0.10)'); hg.addColorStop(1, 'rgba(0,0,0,0.08)');
+      ctx.fillStyle = hg;
+      ctx.beginPath();
+      ctx.roundRect(W * 0.20, hy * 0.85, W * 0.60, hy * 0.35, [8, 8, 0, 0]);
+      ctx.fill();
 
-      dropShadow(ctx, () => {
-        ctx.beginPath();
-        ctx.roundRect(px, py, pw, ph, 28);
-        ctx.fillStyle = '#F5F3EF';
-        ctx.fill();
+      // Portrait frame above headboard
+      const fw = 180, fh = 230;
+      drawFrame(ctx, img, (W - fw) / 2, hy * 0.08, fw, fh, {
+        frameColor: '#FAF8F4', ft: 14, matColor: '#FEFEFE', mt: 18
       });
-
-      ctx.beginPath();
-      ctx.roundRect(px, py, pw, ph, 28);
-      ctx.fillStyle = '#F5F3EF';
-      ctx.fill();
-      // Highlight gradient
-      const g = ctx.createRadialGradient(W * 0.4, H * 0.35, 0, W * 0.5, H * 0.5, pw * 0.7);
-      g.addColorStop(0, 'rgba(255,255,255,0.4)');
-      g.addColorStop(1, 'rgba(0,0,0,0.04)');
-      ctx.fillStyle = g;
-      ctx.fill();
-      ctx.strokeStyle = '#DEDAD4';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-
-      // Seam border
-      ctx.setLineDash([5, 5]);
-      ctx.strokeStyle = 'rgba(0,0,0,0.12)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.roundRect(px + 16, py + 16, pw - 32, ph - 32, 18);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      if (userImg) {
-        const m = 36;
-        const ix = px + m, iy = py + m, iw = pw - m * 2, ih = ph - m * 2;
-        ctx.save();
-        ctx.beginPath();
-        ctx.roundRect(px + 16, py + 16, pw - 32, ph - 32, 18);
-        ctx.clip();
-        drawImageFit(ctx, userImg, ix, iy, iw, ih, 'contain');
-        ctx.restore();
-      }
-    }
-  },
-  {
-    id: 'phone-case',
-    name: 'Coque Telephone',
-    category: 'accessoires',
-    aspect: 9 / 19,
-    render(canvas, userImg) {
-      const W = 340, H = 680;
-      canvas.width = W * 2;
-      canvas.height = H * 2;
-      const ctx = canvas.getContext('2d');
-      ctx.scale(2, 2);
-
-      wallBg(ctx, W, H, '#D9D4CC');
-
-      const px = 40, py = 30, pw = W - 80, ph = H - 60;
-      const r = 40;
-
-      dropShadow(ctx, () => {
-        ctx.beginPath();
-        ctx.roundRect(px, py, pw, ph, r);
-        ctx.fillStyle = '#2A2A2A';
-        ctx.fill();
-      });
-
-      // Case body
-      ctx.beginPath();
-      ctx.roundRect(px, py, pw, ph, r);
-      ctx.fillStyle = '#2A2A2A';
-      ctx.fill();
-      // Side highlight
-      const sg = ctx.createLinearGradient(px, py, px + pw, py);
-      sg.addColorStop(0, 'rgba(255,255,255,0.12)');
-      sg.addColorStop(0.5, 'rgba(255,255,255,0)');
-      sg.addColorStop(1, 'rgba(0,0,0,0.2)');
-      ctx.fillStyle = sg;
-      ctx.fill();
-
-      // Screen cutout area (slightly inset)
-      const sx = px + 10, sy = py + 10, sw = pw - 20, sh = ph - 20;
-      ctx.beginPath();
-      ctx.roundRect(sx, sy, sw, sh, r - 6);
-      ctx.fillStyle = '#1A1A1A';
-      ctx.fill();
-
-      // Camera bump
-      ctx.beginPath();
-      ctx.roundRect(px + pw * 0.55, py + 16, pw * 0.32, pw * 0.32, 10);
-      ctx.fillStyle = '#111111';
-      ctx.fill();
-      ctx.strokeStyle = '#444444';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      // Camera lens circles
-      for (const [lx, ly] of [[0.62, 0.065], [0.72, 0.065], [0.62, 0.135], [0.72, 0.135]]) {
-        ctx.beginPath();
-        ctx.arc(px + pw * lx, py + pw * ly, pw * 0.05, 0, Math.PI * 2);
-        ctx.fillStyle = '#222222';
-        ctx.fill();
-        ctx.strokeStyle = '#555555';
-        ctx.lineWidth = 0.5;
-        ctx.stroke();
-      }
-
-      if (userImg) {
-        const ix = sx + 20, iy = sy + pw * 0.45;
-        const iw = sw - 40, ih = sh - pw * 0.45 - 20;
-        ctx.save();
-        ctx.beginPath();
-        ctx.roundRect(sx, sy, sw, sh, r - 6);
-        ctx.clip();
-        drawImageFit(ctx, userImg, ix, iy, iw, ih, 'contain');
-        ctx.restore();
-      }
     }
   }
 ];
