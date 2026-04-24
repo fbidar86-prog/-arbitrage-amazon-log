@@ -3,38 +3,60 @@
 
   let userImage = null;
   let activeTemplate = null;
+  let bgLoaded = false;
 
-  const uploadZone    = document.getElementById('uploadZone');
-  const uploadBtn     = document.getElementById('uploadBtn');
-  const fileInput     = document.getElementById('fileInput');
-  const imageStrip    = document.getElementById('imageStrip');
-  const currentThumb  = document.getElementById('currentThumb');
+  const uploadZone     = document.getElementById('uploadZone');
+  const uploadBtn      = document.getElementById('uploadBtn');
+  const fileInput      = document.getElementById('fileInput');
+  const imageStrip     = document.getElementById('imageStrip');
+  const currentThumb   = document.getElementById('currentThumb');
   const changeImageBtn = document.getElementById('changeImageBtn');
-  const templatesGrid = document.getElementById('templatesGrid');
-  const modalOverlay  = document.getElementById('modalOverlay');
-  const modalClose    = document.getElementById('modalClose');
+  const templatesGrid  = document.getElementById('templatesGrid');
+  const modalOverlay   = document.getElementById('modalOverlay');
+  const modalClose     = document.getElementById('modalClose');
   const modalTemplateName = document.getElementById('modalTemplateName');
-  const previewCanvas = document.getElementById('previewCanvas');
-  const downloadBtn   = document.getElementById('downloadBtn');
+  const previewCanvas  = document.getElementById('previewCanvas');
+  const downloadBtn    = document.getElementById('downloadBtn');
+
+  // ---- Preload background photos ----
+
+  function preloadBgs() {
+    let done = 0;
+    TEMPLATES.forEach(tpl => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        tpl._bg = img;
+        done++;
+        // Re-render card once its bg is ready
+        const card = document.querySelector(`[data-id="${tpl.id}"] .template-canvas-wrap canvas`);
+        if (card) tpl.render(card, userImage);
+        if (done === TEMPLATES.length) bgLoaded = true;
+      };
+      img.onerror = () => {
+        tpl._bgFailed = true;
+        const card = document.querySelector(`[data-id="${tpl.id}"] .template-canvas-wrap canvas`);
+        if (card) tpl.render(card, userImage);
+      };
+      img.src = tpl.bgUrl;
+    });
+  }
 
   // ---- Upload ----
 
   uploadZone.addEventListener('click', () => fileInput.click());
-  uploadBtn.addEventListener('click', (e) => { e.stopPropagation(); fileInput.click(); });
+  uploadBtn.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
   changeImageBtn.addEventListener('click', () => fileInput.click());
 
-  uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+  uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
   uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
-  uploadZone.addEventListener('drop', (e) => {
+  uploadZone.addEventListener('drop', e => {
     e.preventDefault();
     uploadZone.classList.remove('dragover');
     const file = e.dataTransfer.files[0];
     if (file && file.type.startsWith('image/')) loadImage(file);
   });
-
-  fileInput.addEventListener('change', () => {
-    if (fileInput.files[0]) loadImage(fileInput.files[0]);
-  });
+  fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadImage(fileInput.files[0]); });
 
   function loadImage(file) {
     const url = URL.createObjectURL(file);
@@ -43,22 +65,31 @@
       userImage = img;
       currentThumb.src = url;
       imageStrip.style.display = '';
-      renderAllCards();
+      refreshAllCards();
     };
     img.src = url;
   }
 
-  // ---- Template cards ----
+  // ---- Cards ----
 
-  function renderAllCards() {
+  function refreshAllCards() {
+    document.querySelectorAll('.template-card').forEach(card => {
+      const tpl = TEMPLATES.find(t => t.id === card.dataset.id);
+      if (!tpl) return;
+      const c = card.querySelector('canvas');
+      if (c) tpl.render(c, userImage);
+    });
+  }
+
+  function buildCards() {
     templatesGrid.innerHTML = '';
     TEMPLATES.forEach(tpl => {
       const card = document.createElement('div');
       card.className = 'template-card';
+      card.dataset.id = tpl.id;
 
       const wrap = document.createElement('div');
       wrap.className = 'template-canvas-wrap';
-
       const c = document.createElement('canvas');
       wrap.appendChild(c);
       tpl.render(c, userImage);
@@ -74,7 +105,7 @@
     });
   }
 
-  // ---- Modal preview ----
+  // ---- Modal ----
 
   function openPreview(tpl) {
     activeTemplate = tpl;
@@ -90,21 +121,26 @@
   }
 
   modalClose.addEventListener('click', closeModal);
-  modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+  modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
   // ---- Download ----
 
   downloadBtn.addEventListener('click', () => {
     if (!previewCanvas || !activeTemplate) return;
-    const a = document.createElement('a');
-    a.download = `mockup-${activeTemplate.id}.png`;
-    a.href = previewCanvas.toDataURL('image/png');
-    a.click();
+    try {
+      const a = document.createElement('a');
+      a.download = `mockup-${activeTemplate.id}.png`;
+      a.href = previewCanvas.toDataURL('image/png');
+      a.click();
+    } catch (e) {
+      alert('Erreur lors du téléchargement. Assurez-vous d\'importer votre image d\'abord.');
+    }
   });
 
   // ---- Init ----
 
-  renderAllCards();
+  buildCards();
+  preloadBgs();
 
 })();
