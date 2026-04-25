@@ -37,10 +37,10 @@ function placeInFrame(ctx, userImg, x, y, w, h) {
   ctx.restore();
 }
 
-function makeRender(bgUrl, defaultFrames) {
+function makeRender(bgUrl, defaultFrames, cW, cH) {
   return function render(canvas, userImg, frameOverrides) {
     const frames = frameOverrides || defaultFrames;
-    const W = 800, H = 560;
+    const W = cW || 800, H = cH || 560;
     canvas.width = W * 2; canvas.height = H * 2;
     const ctx = canvas.getContext('2d');
     ctx.scale(2, 2);
@@ -120,4 +120,13 @@ const TEMPLATES = [
       { xp: 0.490, yp: 0.038, wp: 0.210, hp: 0.420 },
     ],
   },
-].map(t => ({ ...t, render: makeRender(t.bgUrl, t.frames) }));
+  {
+    id: 'salon-moderne',
+    name: 'Salon Moderne',
+    bgUrl: 'mockups/salon-moderne.jpg',
+    local: true,
+    canvasW: 700, canvasH: 840,
+    // Cadre noir portrait centré sur le mur — zone intérieure du cadre
+    frames: [{ xp: 0.295, yp: 0.038, wp: 0.375, hp: 0.660 }],
+  },
+].map(t => ({ ...t, render: makeRender(t.bgUrl, t.frames, t.canvasW, t.canvasH) }));

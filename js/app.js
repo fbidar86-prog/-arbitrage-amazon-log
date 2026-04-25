@@ -115,6 +115,9 @@
 
       const wrap = document.createElement('div');
       wrap.className = 'template-canvas-wrap';
+      if (tpl.canvasW && tpl.canvasH) {
+        wrap.style.aspectRatio = `${tpl.canvasW} / ${tpl.canvasH}`;
+      }
       const c = document.createElement('canvas');
       wrap.appendChild(c);
       tpl.render(c, userImage);
