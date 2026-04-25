@@ -125,8 +125,8 @@ const TEMPLATES = [
     name: 'Salon Moderne',
     bgUrl: 'mockups/salon-moderne.jpg',
     local: true,
-    canvasW: 700, canvasH: 840,
-    // Cadre noir portrait centré sur le mur — zone intérieure du cadre
-    frames: [{ xp: 0.295, yp: 0.038, wp: 0.375, hp: 0.660 }],
+    canvasW: 700, canvasH: 700,
+    // Image 2000x2000 — cadre noir portrait sur le mur
+    frames: [{ xp: 0.280, yp: 0.025, wp: 0.390, hp: 0.680 }],
   },
 ].map(t => ({ ...t, render: makeRender(t.bgUrl, t.frames, t.canvasW, t.canvasH) }));
